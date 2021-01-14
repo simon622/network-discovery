@@ -284,8 +284,10 @@ public class NetworkDiscoveryAgent {
                                     }
                                 } finally {
                                     //-- if this was the birth certificate, we need to flip to ping mode
-                                    if(currentStatus == NetworkNode.SCALING_IN){
-                                        currentStatus = NetworkNode.HEALTHY;
+                                    if(options.isNodeMarkedHealthyAfterBirth()){
+                                        if(currentStatus == NetworkNode.SCALING_IN){
+                                            currentStatus = NetworkNode.HEALTHY;
+                                        }
                                     }
                                 }
                             } catch(Throwable e){

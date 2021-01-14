@@ -77,6 +77,11 @@ public class NetworkDiscoveryOptions {
      */
     public static final String DEFAULT_ENCRYPTION_SECRET = null;
 
+    /**
+     * By default a node will NOT be marked healthy after the birth is broadcast, it needs to be done
+     * by the application
+     */
+    public static final boolean DEFAULT_NODE_MARKED_HEALTHY_AFTER_BIRTH = false;
 
     boolean networkEnabled = DEFAULT_NETWORK_ENABLED;
     boolean broadcastEnabled = DEFAULT_BROADCAST_ENABLED;
@@ -93,6 +98,12 @@ public class NetworkDiscoveryOptions {
     boolean verboseLoggingEnabled = DEFAULT_VERBOSE_LOGGING_ENABLED;
     boolean encryptedEnabled = DEFAULT_ENCRYPTION_ENABLED;
     String encryptionSecret = DEFAULT_ENCRYPTION_SECRET;
+    boolean nodeMarkedHealthyAfterBirth = DEFAULT_NODE_MARKED_HEALTHY_AFTER_BIRTH;
+
+    public NetworkDiscoveryOptions withNodeMarkedHealthyAfgterBirth(boolean nodeMarkedHealthyAfterBirth){
+        this.nodeMarkedHealthyAfterBirth = nodeMarkedHealthyAfterBirth;
+        return this;
+    }
 
     public NetworkDiscoveryOptions withEncryptionEnabled(boolean encryptionEnabled){
         this.encryptedEnabled = encryptionEnabled;
@@ -227,5 +238,9 @@ public class NetworkDiscoveryOptions {
 
     public String getEncryptionSecret() {
         return encryptionSecret;
+    }
+
+    public boolean isNodeMarkedHealthyAfterBirth() {
+        return nodeMarkedHealthyAfterBirth;
     }
 }
