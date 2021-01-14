@@ -5,6 +5,7 @@ import org.slj.network.discovery.model.*;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,6 +35,7 @@ public class NetworkDiscoveryAgent {
 
     private Logger logger = Logger.getLogger(NetworkDiscoveryAgent.class.getName());
 
+    private static final String HEADER = "$-%s-$";
     private NetworkDiscoveryOptions options;
     private Object monitor = new Object();
     private volatile boolean running = false;
@@ -41,7 +43,7 @@ public class NetworkDiscoveryAgent {
     private Thread broadcastThread = null;
     private DatagramSocket networkSocket;
 
-    private final String groupName, nodeName;
+    private final String trafficGroup, groupName, nodeName;
     private volatile int currentStatus;
     private volatile int port;
     private volatile String hostAddress;
@@ -56,13 +58,18 @@ public class NetworkDiscoveryAgent {
      * NB: Using this constructor will mean broadcast messages FROM this host will attempt to determine
      * the outbound address using a Socket to a public DNS address which is configured in options.
      *
+     * @param trafficGroup - Filters all traffic so only traffic from the matching group will be considered using magic bytes on the datagrams
      * @param groupName - A group represents a logical "grouping" of hosts, often referred to as a cluster.
      * @param nodeName - MANDATORY, The unique name of the current host, which can be used to visually identify the host on the network.
      */
-    public NetworkDiscoveryAgent(String groupName, String nodeName){
+    public NetworkDiscoveryAgent(String trafficGroup, String groupName, String nodeName){
+        this.trafficGroup = trafficGroup;
+        if(!validTrafficGroup(trafficGroup)) {
+            throw new IllegalArgumentException("trafficGroup must non null and alpha numeric");
+        }
         this.nodeName = nodeName;
         if(nodeName == null){
-            throw new IllegalArgumentException("unable to start agent with <null> hostName");
+            throw new IllegalArgumentException("unable to start agent with <null> nodeName");
         }
         this.groupName = groupName != null ? groupName.trim() : groupName;
     }
@@ -74,13 +81,14 @@ public class NetworkDiscoveryAgent {
      * NB: This will use the supplied hostAddress and port in its own broadcast messages rather than
      * attempting a lookup
      *
+     * @param trafficGroup - Filters all traffic so only traffic from the matching group will be considered using magic bytes on the datagrams
      * @param groupName - A group represents a logical "grouping" of hosts, often referred to as a cluster.
      * @param nodeName - MANDATORY, The unique name of the current host, which can be used to visually identify the host on the network.
      * @param hostAddress - The local hostAddress to send in broadcast messages
      * @param port - The local port to send in broadcast messages
      */
-    public NetworkDiscoveryAgent(String groupName, String nodeName, String hostAddress, int port){
-        this(groupName, nodeName);
+    public NetworkDiscoveryAgent(String trafficGroup, String groupName, String nodeName, String hostAddress, int port){
+        this(trafficGroup, groupName, nodeName);
         this.hostAddress = hostAddress;
         this.port = port;
     }
@@ -92,6 +100,7 @@ public class NetworkDiscoveryAgent {
      * @throws NetworkDiscoveryException - an error occurred starting your agent
      */
     public NetworkGraph start(NetworkDiscoveryOptions options) throws NetworkDiscoveryException {
+        validateOptions(options);
         try {
             this.options = options;
             level = options.isVerboseLoggingEnabled() ? Level.INFO : Level.FINE;
@@ -197,11 +206,23 @@ public class NetworkDiscoveryAgent {
                                 DatagramPacket p = new DatagramPacket(buff, buff.length);
                                 networkSocket.receive(p);
                                 int length = p.getLength();
-                                if(logger.isLoggable(level)){
-                                    logger.log(level, String.format("receiving [%s] bytes from [%s]",
-                                            length, p.getAddress().getHostAddress()));
+                                if(validApplicationTraffic(buff)){
+                                    if(logger.isLoggable(level)){
+                                        logger.log(level, String.format("receiving [%s] bytes on traffic group [%s] from [%s]",
+                                                length, trafficGroup, p.getAddress().getHostAddress()));
+                                    }
+                                    byte[] arr = removeHeader(buff, length);
+                                    if(options.isEncryptedEnabled()){
+                                        arr = NetworkDiscoveryAgentUtils.AES_decrypt(options.getEncryptionSecret(), arr);
+                                    }
+                                    receiveFromTransport(NetworkDiscoveryAgentUtils.wrap(arr, arr.length));
+                                } else {
+                                    if(logger.isLoggable(level)){
+                                        logger.log(level, String.format("received [%s] bytes of NON valid traffic from [%s]",
+                                                length, p.getAddress().getHostAddress()));
+                                    }
                                 }
-                                receiveFromTransport(NetworkDiscoveryAgentUtils.wrap(buff, length));
+
                             } catch(Throwable e){
                                 logger.log(Level.SEVERE, "encountered an error listening for broadcast traffic;", e);
                             } finally {
@@ -238,18 +259,26 @@ public class NetworkDiscoveryAgent {
                                 List<InetAddress> broadcastAddresses = getAllBroadcastAddresses();
                                 try (DatagramSocket socket = new DatagramSocket()){
                                     socket.setBroadcast(true);
-                                    try (ByteArrayOutputStream baos = new ByteArrayOutputStream(writeBufferSize)) {
+                                    try (ByteArrayOutputStream baos
+                                                 = new ByteArrayOutputStream(writeBufferSize)) {
                                         ObjectOutputStream oos = new ObjectOutputStream(baos);
                                         oos.writeObject(message);
                                         oos.flush();
+                                        byte[] header = generateHeader();
                                         byte[] data = baos.toByteArray();
+                                        if(options.isEncryptedEnabled()){
+                                            data = NetworkDiscoveryAgentUtils.AES_encrypt(options.getEncryptionSecret(), data);
+                                        }
+                                        byte[] all = new byte[data.length + header.length];
+                                        System.arraycopy(header, 0, all, 0, header.length);
+                                        System.arraycopy(data, 0, all, header.length, data.length);
                                         for(InetAddress address : broadcastAddresses) {
                                             if(logger.isLoggable(level)){
                                                 logger.log(level, String.format("broadcasting [%s] bytes to network interface [%s] -> [%s]",
                                                         data.length, address, options.getBroadcastPort()));
                                             }
                                             DatagramPacket packet
-                                                    = new DatagramPacket(data, data.length, address, options.getBroadcastPort());
+                                                    = new DatagramPacket(all, all.length, address, options.getBroadcastPort());
                                             socket.send(packet);
                                         }
                                     }
@@ -322,6 +351,9 @@ public class NetworkDiscoveryAgent {
                 message.setStatus(BroadcastMessage.PING);
         }
         message.setHost(generateCurrentHostState());
+        if(options.isBroadcastPeerProfiles()){
+            message.setPeers(graph.getAllNodesByGroupName(null, false));
+        }
         if(logger.isLoggable(level)){
             logger.log(level, String.format("sending message [%s]", message));
         }
@@ -365,5 +397,71 @@ public class NetworkDiscoveryAgent {
             logger.log(level, String.format("received message was [%s]", message));
         }
         graph.receiveMessage(message, options.isConsiderPeerProfiles());
+    }
+
+    protected void validateOptions(NetworkDiscoveryOptions options){
+        if(options.isEncryptedEnabled()){
+            if(options.getEncryptionSecret() == null){
+                throw new IllegalArgumentException("when using encryption a secret must be set");
+            }
+        }
+    }
+
+    protected boolean validApplicationTraffic(byte[] arr){
+        if(arr.length < 5) return false;
+        if(arr[0] != '$') return false;
+        if(arr[1] != '-') return false;
+        String trafficGroup = readTrafficGroup(arr);
+        return this.trafficGroup.equals(trafficGroup);
+    }
+
+    protected byte[] generateHeader(){
+        return String.format(HEADER, trafficGroup).getBytes(StandardCharsets.UTF_8);
+    }
+
+    protected byte[] removeHeader(byte[] arr, int length){
+        int i = 2;
+        for (; i < length; i++){
+            byte b = arr[i];
+            if((b == '-') && (arr[i+1] == '$')){
+                i++;
+                break;
+            }
+        }
+        byte[] data = new byte[length - (i + 1)];
+        System.arraycopy(arr, i+1, data, 0, data.length);
+        return data;
+    }
+
+    protected String readTrafficGroup(byte[] arr){
+        StringBuilder sb = new StringBuilder();
+        for (int i = 2; i < arr.length; i++){
+            byte b = arr[i];
+            if((b == '-')){
+                break;
+            }
+            sb.append((char) arr[i]);
+        }
+        return sb.toString();
+    }
+
+    public static String toBinary(byte... b) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; b != null && i < b.length; i++) {
+            sb.append(String.format("%8s", Integer.toBinaryString(b[i] & 0xFF)).replace(' ', '0'));
+            if (i < b.length - 1)
+                sb.append(" ");
+        }
+        return sb.toString();
+    }
+
+    protected boolean validTrafficGroup(String trafficGroup){
+        if(trafficGroup == null || trafficGroup.trim().length() == 0) return false;
+        for (int i=0; i< trafficGroup.length(); i++) {
+            char c = trafficGroup.charAt(i);
+            if (c < 0x30 || (c >= 0x3a && c <= 0x40) || (c > 0x5a && c <= 0x60) || c > 0x7a)
+                return false;
+        }
+        return true;
     }
 }

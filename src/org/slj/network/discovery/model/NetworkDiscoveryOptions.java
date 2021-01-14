@@ -67,6 +67,17 @@ public class NetworkDiscoveryOptions {
      */
     public static boolean DEFAULT_VERBOSE_LOGGING_ENABLED = true;
 
+    /**
+     * By default encryption of message bodies is enabled
+     */
+    public static boolean DEFAULT_ENCRYPTION_ENABLED = true;
+
+    /**
+     * There is NO encryption secret set by default this must before use if using encryption
+     */
+    public static final String DEFAULT_ENCRYPTION_SECRET = null;
+
+
     boolean networkEnabled = DEFAULT_NETWORK_ENABLED;
     boolean broadcastEnabled = DEFAULT_BROADCAST_ENABLED;
     boolean broadcastPeerProfiles = DEFAULT_BROADCAST_PEER_PROFILES;
@@ -80,6 +91,18 @@ public class NetworkDiscoveryOptions {
     String dynamicLocalEstablishmentUrl = DEFAULT_DYNAMIC_LOCAL_ESTABLISHMENT_URL;
     int dynamicLocalEstablishmentPort = DEFAULT_DYNAMIC_LOCAL_ESTABLISHMENT_PORT;
     boolean verboseLoggingEnabled = DEFAULT_VERBOSE_LOGGING_ENABLED;
+    boolean encryptedEnabled = DEFAULT_ENCRYPTION_ENABLED;
+    String encryptionSecret = DEFAULT_ENCRYPTION_SECRET;
+
+    public NetworkDiscoveryOptions withEncryptionEnabled(boolean encryptionEnabled){
+        this.encryptedEnabled = encryptionEnabled;
+        return this;
+    }
+
+    public NetworkDiscoveryOptions withEncryptionSecret(String encryptionSecret){
+        this.encryptionSecret = encryptionSecret;
+        return this;
+    }
 
     public NetworkDiscoveryOptions withVerboseLoggingEnabled(boolean verboseLoggingEnabled){
         this.verboseLoggingEnabled = verboseLoggingEnabled;
@@ -196,5 +219,13 @@ public class NetworkDiscoveryOptions {
 
     public boolean isBroadcastEnabled() {
         return broadcastEnabled;
+    }
+
+    public boolean isEncryptedEnabled() {
+        return encryptedEnabled;
+    }
+
+    public String getEncryptionSecret() {
+        return encryptionSecret;
     }
 }

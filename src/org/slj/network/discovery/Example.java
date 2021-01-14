@@ -11,11 +11,11 @@ public class Example {
             //-- create the configuration options for your agent - see documentation for a full list
             //-- of configuration options
             NetworkDiscoveryOptions options = new NetworkDiscoveryOptions().
-                    withBroadcastIntervalMillis(30000);
+                    withEncryptionSecret("mySecret");
 
             //-- instantiate your agent, passing in your local host data that will be optionally
             //-- broadcast if the agent is configured to broadcast as well as receive
-            NetworkDiscoveryAgent agent = new NetworkDiscoveryAgent("myResourceGroup", "Machine 1");
+            NetworkDiscoveryAgent agent = new NetworkDiscoveryAgent("slj59", "myResourceGroup", "Machine 1");
 
             //-- start the engine, in doing so your network graph will be created. The network graph can from this
             //-- point forward be queried for network status
