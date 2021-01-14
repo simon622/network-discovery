@@ -37,7 +37,7 @@ public class Example {
 
             //-- you can use the network graph to wait for various clusters to become active
             NetworkNode node =
-                    graph.waitOnFirstHealthyNode(null, true, 10000);
+                    graph.waitOnFirstHealthyNode("myResourceGroup", true, 10000);
 
             System.out.println("Success, discovered " + node);
 
