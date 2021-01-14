@@ -1,6 +1,7 @@
 # Network Discovery Agent
 Full, dependency free java implementation of a network discovery agent. Maintain an up-to-date network graph with Node status and information broadcast via UDP.
-NB: Cloud provides such as AWS and Azure will restrict broadcast traffic on their architectures and so UDP broadcast will only work in these circumstances on an overlay network.
+
+**NB: Cloud provides such as AWS and Azure will restrict broadcast traffic on their architectures and so UDP broadcast will only work in these circumstances on an overlay network.**
 
 ## Quick start
 Configure your details using the code below and run Example. This will yeild a local agent running which when 
