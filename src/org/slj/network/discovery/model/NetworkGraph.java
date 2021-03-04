@@ -41,8 +41,8 @@ public class NetworkGraph {
     }
 
     public NetworkNode getNode(String name){
-        Iterator<String> itr = network.keySet().iterator();
         synchronized (network){
+            Iterator<String> itr = network.keySet().iterator();
             while(itr.hasNext()){
                 String hostName = itr.next();
                 NetworkNode host = network.get(hostName);
@@ -56,8 +56,8 @@ public class NetworkGraph {
 
     public List<NetworkNode> getAllNodesByGroupName(String groupName, boolean includeSelf){
         List<NetworkNode> l = new ArrayList<>();
-        Iterator<String> itr = network.keySet().iterator();
         synchronized (network){
+            Iterator<String> itr = network.keySet().iterator();
             while(itr.hasNext()){
                 String hostName = itr.next();
                 NetworkNode host = network.get(hostName);
@@ -78,8 +78,8 @@ public class NetworkGraph {
 
     public List<NetworkNode> getAllHealthyNodes(String groupName, boolean includeSelf){
         List<NetworkNode> l = new ArrayList<>();
-        Iterator<String> itr = network.keySet().iterator();
         synchronized (network){
+            Iterator<String> itr = network.keySet().iterator();
             while(itr.hasNext()){
                 String hostName = itr.next();
                 NetworkNode host = network.get(hostName);
